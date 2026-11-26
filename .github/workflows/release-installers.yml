@@ -50,7 +50,7 @@ jobs:
         run: |
           npm install
           npm run build
-          cd native-desktop && npm install
+          cd native-desktop && npm install && npx tauri icon src-tauri/icons/icon.png
 
       - name: Build native installers (.exe, .dmg, .AppImage, .deb)
         uses: tauri-apps/tauri-action@v0
