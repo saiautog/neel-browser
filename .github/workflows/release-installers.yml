@@ -1,0 +1,66 @@
+name: Build Neel Browser Installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-installers:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: "--target x86_64-pc-windows-msvc"
+            artifact_label: "Windows (.exe NSIS)"
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+            artifact_label: "macOS (.dmg Universal)"
+          - platform: ubuntu-22.04
+            args: ""
+            artifact_label: "Linux (.AppImage & .deb)"
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux WebKitGTK dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend and Tauri dependencies
+        run: |
+          npm install
+          npm run build
+          cd native-desktop && npm install
+
+      - name: Build native installers (.exe, .dmg, .AppImage, .deb)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: native-desktop
+          tagName: v__VERSION__
+          releaseName: "Neel Browser v__VERSION__"
+          releaseBody: "Lightweight native installers for Windows (.exe), macOS (.dmg), and Linux (.AppImage / .deb)."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
